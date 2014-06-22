@@ -1,0 +1,85 @@
+Practical Machine Learning Assignment
+========================================================
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the aim is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the behaviour of 20 test cases. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The machine learning method used for this assignment is random forest with out-of-bag error estimate. 
+
+The following text explains random forest:
+"In random forests, there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error. It is estimated internally, during the run, as follows:
+
+Each tree is constructed using a different bootstrap sample from the original data. About one-third of the cases are left out of the bootstrap sample and not used in the construction of the kth tree.
+
+Put each case left out in the construction of the kth tree down the kth tree to get a classification. In this way, a test set classification is obtained for each case in about one-third of the trees. At the end of the run, take j to be the class that got most of the votes every time case n was oob. The proportion of times that j is not equal to the true class of n averaged over all cases is the oob error estimate. This has proven to be unbiased in many tests."
+
+Load library
+```{r results='hide'}
+library(caret)
+```
+
+Load data
+```{r results='hide'}
+train_data<-read.csv("pml-training.csv",na.strings=c("NA",""))
+```
+
+Clean_data and remove unused information
+Assuming columns with NA or empty rows are unused variables
+```{r results='hide'}
+NAs <- apply(train_data,2,function(x) {sum(is.na(x))}) 
+clean_data <- train_data[,which(NAs == 0)]
+remove <- grep("timestamp|X|user_name|new_window|num_window",names(train_data))
+clean_data <- clean_data[,-remove]
+```
+
+Hold out 20% sample for validation
+```{r results='hide'}
+inTrain<-createDataPartition(y=clean_data$classe,p=0.8,list=FALSE)
+clean_data_train<-clean_data[inTrain,]
+clean_data_validate<-clean_data[-inTrain,]
+```
+
+Model - using random forest
+```{r}
+set.seed(12345) 
+model_rf<-train(classe~ . , data = clean_data_train, method = 'rf', trControl=trainControl(method='oob'))
+model_rf
+```
+
+Assess accuracy and out of sample error
+```{r}
+pred <- predict(model_rf, clean_data_validate)
+confusionMatrix(pred,clean_data_validate$classe)
+```
+
+Show variable importance
+```{r}
+varImp(model_rf)
+```
+
+Load and clean test dataset
+```{r results='hide'} 
+test_data<-read.csv("pml-testing.csv",na.strings=c("NA",""))
+NAs <- apply(test_data,2,function(x) {sum(is.na(x))}) 
+clean_test_data <- test_data[,which(NAs == 0)]
+remove <- grep("timestamp|X|user_name|new_window|num_window",names(test_data))
+clean_test_data <- clean_test_data[,-remove]
+```
+
+Output prediction
+```{r results='hide'}
+predictions <- predict(model_rf, clean_test_data)
+predictions
+```
+
+Write out to file
+```{r eval=FALSE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictions)
+```
